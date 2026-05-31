@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Downloader</title>
+    <link rel="icon" type="image/png" href="/logo.png">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        lightBg: '#f8fafc',
+                        lightCard: '#ffffff',
+                        borderHighlight: '#e2e8f0',
+                        accentRed: '#990000',
+                        accentRedHover: '#b30000',
+                        textPrimary: '#0f172a',
+                        textSecondary: '#475569',
+                        zincBorder: '#e4e4e7'
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 8px -1px rgba(0, 0, 0, 0.02)',
+                        'glow-red': '0 0 20px rgba(153, 0, 0, 0.15)',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #0f172a;
+            overflow-x: hidden;
+        }
+        .font-outfit {
+            font-family: 'Outfit', sans-serif;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f8fafc;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #cbd5e1;
+        }
+        /* Card utility */
+        .glass-card {
+            background: #ffffff;
+            border: 1px solid #f1f5f9;
+            box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+        }
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+        .pulse-glow-orange {
+            animation: pulse-glow 2s infinite ease-in-out;
+        }
+    </style>
+    <!-- React and ReactDOM from CDN -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <!-- Babel for JSX compilation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-lightBg text-textPrimary">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // Custom SVGs for a polished look
+        const Icons = {
+            Folder: () => (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+            ),
+            FolderOpen: () => (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9l-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+            ),
+            Link: () => (
+                <svg className="w-5 h-5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+            ),
+            Download: () => (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+            ),
+            Like: () => (
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 10.2a1.995 1.995 0 00-.8.133z" />
+                </svg>
+            ),
+            Settings: () => (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+            ),
+            Close: () => (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            ),
+            Speed: () => (
+                <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+            ),
+            Globe: () => (
+                <svg className="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                </svg>
+            )
+        };
+
+        function App() {
+            const [modUrl, setModUrl] = useState("");
+            const [downloadFolder, setDownloadFolder] = useState("C:\\Users\\adamk\\Downloads\\NexusMods");
+            const [analyzedMod, setAnalyzedMod] = useState(null);
+            const [modFiles, setModFiles] = useState([]);
+            const [analyzing, setAnalyzing] = useState(false);
+            const [analyzeError, setAnalyzeError] = useState("");
+            
+            // Server Config & Downloads
+            const [settings, setSettings] = useState({ api_key: "", has_key: false, custom_paths: [] });
+            const [downloads, setDownloads] = useState([]);
+            const [settingsOpen, setSettingsOpen] = useState(false);
+
+            useEffect(() => {
+                fetchSettings();
+                fetchDownloads();
+
+                // Poll downloads status every 1.5 seconds for snappy updates
+                const pollInterval = setInterval(fetchDownloads, 1500);
+                return () => clearInterval(pollInterval);
+            }, []);
+
+            // Set default download folder once settings are loaded
+            useEffect(() => {
+                if (settings.custom_paths && settings.custom_paths.length > 0) {
+                    setDownloadFolder(settings.custom_paths[0]);
+                }
+            }, [settings]);
+
+            const fetchSettings = () => {
+                fetch("/api/settings")
+                    .then(res => res.json())
+                    .then(data => setSettings(data))
+                    .catch(err => console.error("Error fetching settings:", err));
+            };
+
+            const fetchDownloads = () => {
+                fetch("/api/downloads")
+                    .then(res => res.json())
+                    .then(data => setDownloads(data))
+                    .catch(err => console.error("Error fetching downloads:", err));
+            };
+
+            const handleSaveSettings = (key, sid) => {
+                fetch("/api/settings", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ api_key: key, sid_cookie: sid, custom_paths: [downloadFolder] })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        fetchSettings();
+                        setSettingsOpen(false);
+                    }
+                })
+                .catch(err => console.error("Error saving settings:", err));
+            };
+
+            const handleFolderSelect = () => {
+                fetch("/api/folder/select", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.path) {
+                        setDownloadFolder(data.path);
+                        // Save path to persist on server config
+                        fetch("/api/settings", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ api_key: settings.api_key, sid_cookie: settings.sid_cookie, custom_paths: [data.path] })
+                        }).then(fetchSettings);
+                    } else if (data.error && data.error !== "Selection cancelled") {
+                        alert(`Folder select error: ${data.error}`);
+                    }
+                })
+                .catch(err => alert("Error opening folder picker dialog"));
+            };
+
+            const handleFolderOpen = () => {
+                fetch("/api/folder/open", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ folder: downloadFolder })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.success) {
+                        alert("Could not open folder. Make sure the folder exists first.");
+                    }
+                })
+                .catch(err => console.error("Error launching folder:", err));
+            };
+
+            const handleAnalyzeUrl = (e) => {
+                if (e) e.preventDefault();
+                if (!modUrl.trim()) return;
+
+                setAnalyzing(true);
+                setAnalyzeError("");
+                setAnalyzedMod(null);
+                setModFiles([]);
+
+                fetch("/api/analyze", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ url: modUrl.trim() })
+                })
+                .then(res => {
+                    if (!res.ok) {
+                        return res.json().then(data => { throw new Error(data.error || "Failed to analyze URL") });
+                    }
+                    return res.json();
+                })
+                .then(data => {
+                    setAnalyzing(false);
+                    if (data.success) {
+                        setAnalyzedMod({
+                            ...data.mod,
+                            game_id: data.game_id,
+                            mod_id: data.mod_id,
+                            is_collection: data.is_collection
+                        });
+                        setModFiles(data.files || []);
+                    } else {
+                        setAnalyzeError(data.error || "Analysis failed.");
+                    }
+                })
+                .catch(err => {
+                    setAnalyzing(false);
+                    setAnalyzeError(err.message || "Failed to parse link. Verify format is correct.");
+                });
+            };
+
+            const handleDownloadFile = (file) => {
+                if (!analyzedMod) return;
+                fetch("/api/download", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        game_id: file.game_id || analyzedMod.game_id,
+                        mod_id: file.mod_id || analyzedMod.mod_id,
+                        file_id: file.file_id,
+                        file_name: file.name.endsWith(".zip") || file.name.endsWith(".rar") || file.name.endsWith(".7z") ? file.name : `${file.name}.zip`,
+                        download_dir: downloadFolder,
+                        mod_name: file.mod_name || analyzedMod.name
+                    })
+                })
+                .then(res => {
+                    if (!res.ok) {
+                        return res.json().then(data => { throw new Error(data.error || "Failed to start download") });
+                    }
+                    return res.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        fetchDownloads();
+                    } else if (data.is_free_user) {
+                        if (confirm("⚡ Direct API download is a Nexus Mods Premium-only feature.\n\nWOULD YOU LIKE TO UNLOCK 100% FREE AUTOMATIC HIGH-SPEED DOWNLOADS?\n\nYou can bypass this limit entirely by extracting your browser's 'nexusmods_session' (or 'sid') session cookie and pasting it in the settings panel!\n\nClick OK to open the settings panel now and configure your session cookie, or Cancel to open the browser page to download manually.")) {
+                            setSettingsOpen(true);
+                        } else {
+                            window.open(data.download_page_url, "_blank");
+                        }
+                    } else {
+                        alert(`Download failed: ${data.error}`);
+                    }
+                })
+                .catch(err => alert(`Download failed to initiate: ${err.message}`));
+            };
+
+            return (
+                <div className="min-h-screen flex flex-col bg-[#f8fafc] text-zinc-800 font-sans selection:bg-red-100 selection:text-red-950">
+                    
+                    {/* PREMIUM HEADER */}
+                    <header className="h-16 px-6 glass-card bg-white flex items-center justify-between border-b border-zinc-200/60 sticky top-0 z-40">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8">
+                                <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
+                            </div>
+                            <span className="text-lg font-black font-outfit tracking-wide text-zinc-850">
+                                NEXUS DOWNLOADER <span className="text-accentRed font-bold text-[10px] px-2 py-0.5 rounded-full bg-red-50 border border-red-200/30 ml-2">DIRECT DOWNLOAD UTILITY</span>
+                            </span>
+                        </div>
+
+                        {/* Top Right Setup */}
+                        <div className="flex items-center gap-4">
+                            <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-lg border border-zinc-200/80 bg-zinc-50 text-[11px] font-semibold text-zinc-500">
+                                <span className={`w-2 h-2 rounded-full ${settings.has_sid || settings.has_key ? 'bg-accentRed' : 'bg-amber-500 animate-pulse'}`}></span>
+                                {settings.has_sid ? 'Free Cookie Bypass Active' : settings.has_key ? 'Nexus API Active' : 'Demo fallback mode'}
+                            </div>
+                            
+                            <button
+                                onClick={() => setSettingsOpen(true)}
+                                className="px-3.5 py-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 hover:border-zinc-300 text-zinc-700 hover:text-zinc-900 transition-all flex items-center gap-2 text-xs font-bold shadow-sm"
+                                title="API configuration"
+                            >
+                                <Icons.Settings />
+                                API Settings
+                            </button>
+                        </div>
+                    </header>
+
+                    {/* MAIN CONTENT DASHBOARD */}
+                    <main className="flex-1 max-w-6xl w-full mx-auto p-6 flex flex-col gap-6">
+                        
+                        {/* URL INPUT & FOLDER CHOOSER CARD */}
+                        <section className="glass-card p-6 rounded-2xl border border-zinc-250/40 bg-white shadow-soft relative overflow-hidden">
+                            {/* Accent line */}
+                            <div className="absolute top-0 left-0 right-0 h-[2px] bg-accentRed"></div>
+                            
+                            <div className="flex flex-col gap-6">
+                                <div>
+                                    <h1 className="text-2xl font-black font-outfit text-zinc-850">
+                                        Direct Mod URL Downloader
+                                    </h1>
+                                    <p className="text-xs text-zinc-500 mt-1">Paste any Nexus Mod page link and download directly to your selected Windows directory at top speeds.</p>
+                                </div>
+
+                                <form onSubmit={handleAnalyzeUrl} className="flex flex-col md:flex-row gap-3">
+                                    <div className="flex-1 relative flex items-center">
+                                        <div className="absolute left-3.5">
+                                            <Icons.Link />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={modUrl}
+                                            onChange={(e) => setModUrl(e.target.value)}
+                                            placeholder="Paste Nexus Mod link (e.g. https://www.nexusmods.com/readyornot/mods/1001)"
+                                            className="w-full text-xs bg-zinc-50 border border-zinc-200 rounded-xl pl-11 pr-4 py-3.5 text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-accentRed/45 focus:ring-1 focus:ring-red-500/10 transition-all"
+                                        />
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        disabled={analyzing || !modUrl.trim()}
+                                        className="px-6 py-3.5 bg-accentRed disabled:bg-zinc-100 text-white font-extrabold text-xs rounded-xl hover:bg-accentRedHover active:scale-95 disabled:scale-100 disabled:text-zinc-400 transition-all shadow-md shadow-red-500/5 flex items-center justify-center gap-2"
+                                    >
+                                        {analyzing ? (
+                                            <>
+                                                <div className="w-4 h-4 rounded-full border-2 border-zinc-300 border-t-transparent animate-spin"></div>
+                                                Analyzing...
+                                            </>
+                                        ) : (
+                                            <>Analyze Link</>
+                                        )}
+                                    </button>
+                                </form>
+
+                                {analyzeError && (
+                                    <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl text-xs font-semibold text-rose-600">
+                                        {analyzeError}
+                                    </div>
+                                )}
+
+                                {/* DESTINATION FOLDER CONTROL SECTOR */}
+                                <div className="p-4 rounded-xl border border-zinc-200/80 bg-zinc-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div className="min-w-0">
+                                        <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-400 block mb-1">Target Save Destination</span>
+                                        <div className="flex items-center gap-2 text-xs font-semibold text-zinc-700 font-mono truncate bg-white p-2 rounded-lg border border-zinc-200">
+                                            <Icons.Folder />
+                                            <span className="truncate" title={downloadFolder}>{downloadFolder}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 shrink-0 self-stretch sm:self-auto justify-end">
+                                        <button
+                                            onClick={handleFolderSelect}
+                                            className="px-3.5 py-2.5 rounded-lg bg-white hover:bg-zinc-50 border border-zinc-200 hover:border-zinc-300 text-zinc-700 hover:text-zinc-900 transition-all text-xs font-bold flex items-center gap-2 shadow-sm"
+                                        >
+                                            <Icons.Folder />
+                                            Choose Folder
+                                        </button>
+                                        <button
+                                            onClick={handleFolderOpen}
+                                            className="px-3.5 py-2.5 rounded-lg bg-white hover:bg-zinc-50 border border-zinc-200 hover:border-zinc-300 text-zinc-700 hover:text-zinc-900 transition-all text-xs font-bold flex items-center gap-2 shadow-sm"
+                                        >
+                                            <Icons.FolderOpen />
+                                            Open Folder
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        {/* ANALYZED RESULTS SECTION */}
+                        {analyzedMod && (
+                            <section className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-slide-up">
+                                
+                                {/* MOD DETAILS COLUMN */}
+                                <div className="md:col-span-1 flex flex-col gap-6">
+                                    <div className="glass-card bg-white rounded-2xl border border-zinc-200 shadow-soft overflow-hidden flex flex-col h-full">
+                                        
+                                        {/* Mod cover mockup */}
+                                        <div className="h-44 bg-zinc-50 relative overflow-hidden flex items-center justify-center border-b border-zinc-200/80">
+                                            <div className="text-center relative z-10 p-4">
+                                                <div className="text-zinc-400 mb-2 flex justify-center">
+                                                    <Icons.FolderOpen />
+                                                </div>
+                                                <span className="text-[10px] uppercase font-bold tracking-widest text-accentRed block">{analyzedMod.game_name || analyzedMod.game_id}</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="p-5 flex-1 flex flex-col justify-between">
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-red-50 text-accentRed border border-red-200 uppercase tracking-wider">
+                                                        v{analyzedMod.version}
+                                                    </span>
+                                                    <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Mod ID: {analyzedMod.mod_id}</span>
+                                                </div>
+
+                                                <h2 className="text-lg font-black font-outfit text-zinc-800 leading-tight mt-3">
+                                                    {analyzedMod.name}
+                                                </h2>
+
+                                                <p className="text-xs text-zinc-500 font-semibold mt-2.5">
+                                                    Author: <span className="text-zinc-700">{analyzedMod.author}</span>
+                                                </p>
+
+                                                <div className="mt-4 p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl max-h-56 overflow-y-auto text-xs leading-relaxed text-zinc-600">
+                                                    <span className="text-[9px] uppercase font-bold text-zinc-400 block mb-1">Mod Overview</span>
+                                                    {analyzedMod.summary}
+                                                </div>
+                                            </div>
+
+                                            {/* Footer stats */}
+                                            <div className="grid grid-cols-2 gap-3 border-t border-zinc-100 mt-5 pt-4 text-xs font-bold text-zinc-500">
+                                                <div className="bg-zinc-50 p-2 rounded-lg border border-zinc-150 flex items-center gap-2">
+                                                    <Icons.Like />
+                                                    <div>
+                                                        <span className="text-zinc-400 text-[9px] block uppercase">Likes</span>
+                                                        <span className="text-zinc-700 text-sm font-outfit">{analyzedMod.endorsements || analyzedMod.likes}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="bg-zinc-50 p-2 rounded-lg border border-zinc-150 flex items-center gap-2">
+                                                    <Icons.Download />
+                                                    <div>
+                                                        <span className="text-zinc-400 text-[9px] block uppercase">Downloads</span>
+                                                        <span className="text-zinc-700 text-sm font-outfit">{analyzedMod.downloads}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* FILES LIST COLUMN */}
+                                <div className="md:col-span-2 flex flex-col gap-4">
+                                    <div className="glass-card bg-white rounded-2xl border border-zinc-200 p-5 flex flex-col h-full shadow-soft">
+                                        <h3 className="text-sm font-black font-outfit uppercase tracking-widest text-zinc-600 mb-4 flex items-center justify-between border-b border-zinc-150 pb-3">
+                                            <span>Available Files ({modFiles.length})</span>
+                                            <span className="text-[10px] text-zinc-400 normal-case font-normal">Choose which components to download</span>
+                                        </h3>
+
+                                        {analyzedMod && analyzedMod.is_collection && (
+                                             <div className="mb-4 p-4 rounded-xl bg-red-50/50 border border-red-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                                 <div>
+                                                     <span className="text-xs font-black text-accentRed flex items-center gap-1.5 uppercase tracking-wide">
+                                                         <span className="w-2 h-2 rounded-full bg-accentRed animate-pulse"></span>
+                                                         Collection Mode Active
+                                                     </span>
+                                                     <span className="text-[11px] text-zinc-500 block mt-0.5">Ready to download all {modFiles.length} mods concurrently at maximum internet speed.</span>
+                                                 </div>
+                                                 <button
+                                                     onClick={() => {
+                                                         if (confirm(`Begin download for all ${modFiles.length} mods in this collection?`)) {
+                                                             modFiles.forEach((file, idx) => {
+                                                                 setTimeout(() => {
+                                                                     handleDownloadFile(file);
+                                                                 }, idx * 150);
+                                                             });
+                                                         }
+                                                     }}
+                                                     className="px-4 py-2 bg-accentRed hover:bg-accentRedHover text-white font-extrabold text-[11px] rounded-lg transition-all shadow shadow-red-500/10 active:scale-95 flex items-center gap-1.5 self-end sm:self-auto"
+                                                 >
+                                                     Download All Mods
+                                                 </button>
+                                             </div>
+                                         )}
+
+                                         {modFiles.length === 0 ? (
+                                             <div className="flex-1 flex flex-col items-center justify-center p-12 text-center text-zinc-400">
+                                                 <div className="text-zinc-300 mb-3 flex justify-center">
+                                                     <Icons.Folder />
+                                                 </div>
+                                                 <p className="font-bold text-zinc-500">No downloadable files detected.</p>
+                                                 <p className="text-xs mt-1">Make sure you are connected to the internet or have API config active.</p>
+                                             </div>
+                                         ) : (
+                                             <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
+                                                 {modFiles.map(file => (
+                                                     <div 
+                                                         key={file.file_id} 
+                                                         className="p-4 rounded-xl border border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50/40 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                                                     >
+                                                         <div className="min-w-0 flex-1">
+                                                             <div className="flex items-center gap-2">
+                                                                 <h4 className="font-bold text-sm text-zinc-800 truncate">{file.name}</h4>
+                                                                 <span className="text-[9px] font-bold font-mono bg-zinc-100 border border-zinc-200 px-1.5 py-0.25 rounded text-zinc-500">v{file.version}</span>
+                                                             </div>
+                                                             <p className="text-xs text-zinc-500 mt-1 leading-relaxed line-clamp-2">{file.description || "No file description provided."}</p>
+                                                         </div>
+
+                                                         <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 shrink-0 self-stretch sm:self-auto border-t sm:border-t-0 border-zinc-150 pt-3 sm:pt-0">
+                                                             <div className="text-xs font-black text-accentRed bg-red-50 px-2.5 py-1 rounded border border-red-100">
+                                                                 {file.size_in_bytes ? `${(file.size_in_bytes / (1024 * 1024)).toFixed(1)} MB` : file.size || "Unknown Size"}
+                                                             </div>
+                                                             <button
+                                                                 onClick={() => handleDownloadFile(file)}
+                                                                 className="px-3.5 py-1.5 bg-accentRed hover:bg-accentRedHover text-white font-extrabold text-[11px] rounded-lg transition-all flex items-center gap-1.5 shadow shadow-red-500/10 active:scale-95"
+                                                             >
+                                                                 <Icons.Download />
+                                                                 Download
+                                                             </button>
+                                                         </div>
+
+                                                     </div>
+                                                 ))}
+                                             </div>
+                                         )}
+
+                                     </div>
+                                 </div>
+
+                             </section>
+                        )}
+
+                        {/* LIVE TRACKING QUEUE PANEL */}
+                        <section className="glass-card bg-white p-6 rounded-2xl border border-zinc-200 shadow-soft">
+                             <h3 className="text-sm font-black font-outfit uppercase tracking-widest text-zinc-600 mb-4 flex items-center gap-2 border-b border-zinc-150 pb-3">
+                                 <span className="w-2 h-2 rounded-full bg-accentRed animate-pulse"></span>
+                                 <span>Download Queue & Net Speed Tracker</span>
+                             </h3>
+
+                             {downloads.length === 0 ? (
+                                 <div className="py-10 text-center text-zinc-400">
+                                     <div className="text-zinc-300 mb-2 flex justify-center">
+                                         <Icons.Speed />
+                                     </div>
+                                     <p className="font-semibold text-zinc-500 text-xs">No active or historical downloads in queue.</p>
+                                     <p className="text-[10px] text-zinc-400 mt-0.5">Paste a URL above to search and download mod packages.</p>
+                                 </div>
+                             ) : (
+                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                     {downloads.map(dl => (
+                                         <div key={dl.id} className="p-4 rounded-xl border border-zinc-200 bg-zinc-50/60 flex flex-col justify-between gap-3.5">
+                                             
+                                             <div>
+                                                 <div className="flex items-center justify-between text-xs font-bold">
+                                                     <span className="truncate max-w-[200px] text-zinc-800" title={dl.filename}>{dl.filename}</span>
+                                                     <span className={`text-[9px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded border ${
+                                                         dl.status === "Completed" ? "bg-red-50 text-accentRed border-red-200/30" :
+                                                         dl.status.startsWith("Failed") ? "bg-rose-50 text-rose-700 border-rose-200/40" :
+                                                         "bg-zinc-150/80 text-zinc-700 border-zinc-250/40"
+                                                     }`}>{dl.status}</span>
+                                                 </div>
+                                                 <div className="text-[10px] text-zinc-400 font-medium truncate mt-1">Target Folder: <span className="font-mono text-zinc-500">{downloadFolder}</span></div>
+                                             </div>
+
+                                             {/* Progress slider bar */}
+                                             <div className="space-y-1.5">
+                                                 <div className="w-full bg-zinc-200/80 rounded-full h-2 relative overflow-hidden border border-zinc-250/20">
+                                                     <div
+                                                         className="h-full rounded-full transition-all duration-300 bg-accentRed"
+                                                         style={{ width: `${dl.progress_percent}%` }}
+                                                     ></div>
+                                                 </div>
+                                                 <div className="flex items-center justify-between text-[10px] font-mono font-bold text-zinc-500">
+                                                     <span className="flex items-center gap-1">
+                                                         {dl.status === "Downloading" && <Icons.Speed />}
+                                                         {dl.progress_percent}% completed
+                                                     </span>
+                                                     <span className="text-zinc-650">{dl.speed}</span>
+                                                 </div>
+                                             </div>
+
+                                         </div>
+                                     ))}
+                                 </div>
+                             )}
+                        </section>
+
+                    </main>
+
+                    {/* CONFIGURATION PANEL SETTINGS MODAL */}
+                    {settingsOpen && (
+                        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-sm flex items-center justify-center p-4">
+                            <div className="w-full max-w-md bg-white border border-zinc-200 rounded-2xl shadow-2xl p-6 relative animate-slide-up">
+                                <button
+                                    onClick={() => setSettingsOpen(false)}
+                                    className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-all"
+                                >
+                                    <Icons.Close />
+                                </button>
+                                
+                                <h3 className="text-lg font-black font-outfit text-zinc-800 mb-4 flex items-center gap-2">
+                                    API & Download Config
+                                </h3>
+                                
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1.5">
+                                            Nexus Browser Cookie Header String <span className="text-accentRed font-bold font-sans text-[9px] px-1.5 py-0.25 rounded bg-red-50 border border-red-200/80 ml-1">FREE BYPASS</span>
+                                        </label>
+                                        <input
+                                            id="sidcookie-input"
+                                            type="password"
+                                            placeholder="Paste entire copied Cookie header string here..."
+                                            defaultValue={settings.sid_cookie}
+                                            className="w-full text-xs bg-zinc-50 border border-zinc-200 rounded-xl px-3.5 py-3 text-zinc-800 focus:outline-none focus:border-accentRed/50"
+                                        />
+                                        <span className="text-[10px] text-zinc-400 mt-2 block leading-normal">
+                                            <strong>Bypass instructions (Bypasses Cloudflare)</strong>: Log in to Nexus Mods on your browser. <br/>
+                                            1. Press <strong>F12</strong> to open Developer Tools -> go to the <strong>Network</strong> tab -> **Refresh** the Nexus page. <br/>
+                                            2. Click the very first request in the list (representing the loaded page). <br/>
+                                            3. Under the <strong>Headers</strong> sub-tab, scroll down to <strong>Request Headers</strong>. <br/>
+                                            4. Locate the <strong>Cookie:</strong> header, copy its <strong>entire, long value</strong>, and paste it here!
+                                        </span>
+                                    </div>
+
+                                    <div className="border-t border-zinc-200 my-4 pt-4">
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1.5">Nexus Mods Personal API Key</label>
+                                        <input
+                                            id="apikey-input"
+                                            type="password"
+                                            placeholder="Paste personal API Key here..."
+                                            defaultValue={settings.api_key}
+                                            className="w-full text-xs bg-zinc-50 border border-zinc-200 rounded-xl px-3.5 py-3 text-zinc-800 focus:outline-none focus:border-accentRed/50"
+                                        />
+                                        <span className="text-[10px] text-zinc-400 mt-2 block leading-normal">
+                                            Required to load mod info and file lists: <br/>
+                                            <a href="https://www.nexusmods.com/users/myaccount?tab=api" target="_blank" className="text-accentRed hover:underline inline-block mt-1 font-semibold">Nexus Profile API Tab</a>
+                                        </span>
+                                    </div>
+                                    
+                                    <button
+                                        onClick={() => {
+                                            const keyVal = document.getElementById("apikey-input").value;
+                                            const sidVal = document.getElementById("sidcookie-input").value;
+                                            handleSaveSettings(keyVal, sidVal);
+                                        }}
+                                        className="w-full py-3 bg-accentRed text-white font-extrabold text-xs rounded-xl hover:bg-accentRedHover active:scale-95 transition-all mt-6 shadow shadow-red-500/10"
+                                    >
+                                        Save Configuration
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
