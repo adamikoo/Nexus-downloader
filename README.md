@@ -137,8 +137,6 @@ You are free to use, modify, and distribute this software for personal and educa
 
 ## 🗨️ Contacts & Feedback
 
-For questions, troubleshooting, or code improvements, feel free to contribute to this repository:
-- **GitHub Repository**: [adamikoo/Restaurace29](https://github.com/adamikoo/Restaurace29)
-- **Issue Tracker**: Submit bugs or feature requests on our [GitHub Issues](https://github.com/adamikoo/Restaurace29/issues) page.
+For questions, troubleshooting, or code improvements, feel free to contribute to this repository
 
 [Back to top](#top)
