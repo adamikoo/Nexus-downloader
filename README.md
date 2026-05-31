@@ -1,4 +1,8 @@
 <a name="top"></a>
+<p align="center">
+  <img src="logo.png" alt="Nexus Direct Downloader Logo" width="220px"/>
+</p>
+
 # Nexus Direct Downloader
 
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
