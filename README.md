@@ -129,7 +129,7 @@ To enable the high-speed download bypass on a free account:
 
 ## 📃 License
 
-This project is distributed under the [MIT License](LICENSE). 
+This project is distributed under the [GPL License](https://www.gnu.org/licenses/gpl-3.0.html). 
 
 You are free to use, modify, and distribute this software for personal and educational purposes, provided all legal disclaimers, credits, and copyright notices remain intact.
 
