@@ -759,10 +759,15 @@ def remove_mod_links(staging_path, target_path):
                     pass
 
 def perform_background_download(download_url, output_path, download_id, game_id, file_id, mod_name=""):
-    """Download inside a background thread using 4 concurrent chunk streams for maximum download speeds."""
+    """Download inside a background thread using urllib/requests with URL safety encoding."""
     global downloads_state
     import time
     import ssl
+    import urllib.parse
+    
+    # 1. Прибираємо невидимі символи та правильно екрануємо пробіли у посиланні
+    download_url = download_url.strip().replace("\r", "").replace("\n", "").replace("\t", "")
+    download_url = urllib.parse.quote(download_url, safe=":/?#[]@!$&'()*+,;=%")
     
     with downloads_lock:
         downloads_state[download_id] = {
@@ -779,7 +784,7 @@ def perform_background_download(download_url, output_path, download_id, game_id,
 
     ssl_context = ssl._create_unverified_context()
     
-    # 1. Resolve file size and HTTP Range capabilities
+    # 2. Отримуємо розмір файлу
     total_bytes = 0
     accept_ranges = False
     try:
@@ -805,9 +810,9 @@ def perform_background_download(download_url, output_path, download_id, game_id,
 
     start_time = time.time()
     
-    # 2. Multi-threaded download execution (8 parallel connection streams)
+    # 3. Багатопотокове скачування (8 потоків)
     num_threads = 8
-    if accept_ranges and total_bytes > 1024 * 1024 * 3:  # Chunking active for files > 3MB
+    if accept_ranges and total_bytes > 1024 * 1024 * 3:
         chunk_size = total_bytes // num_threads
         threads = []
         downloaded_chunks = [0] * num_threads
@@ -832,7 +837,6 @@ def perform_background_download(download_url, output_path, download_id, game_id,
                             f.write(buffer)
                             downloaded_chunks[thread_idx] += len(buffer)
                             
-                            # Real-time speed and progress calculation
                             total_downloaded = sum(downloaded_chunks)
                             elapsed = time.time() - start_time
                             speed_str = "0 KB/s"
@@ -864,7 +868,7 @@ def perform_background_download(download_url, output_path, download_id, game_id,
             for t in threads:
                 t.join()
                 
-            # Stitch chunk parts together
+            # Об'єднуємо частини файлу
             with open(output_path, "wb") as outfile:
                 for i in range(num_threads):
                     chunk_file = f"{output_path}.part{i}"
@@ -885,7 +889,7 @@ def perform_background_download(download_url, output_path, download_id, game_id,
             with downloads_lock:
                 downloads_state[download_id]["status"] = f"Failed: {str(e)}"
     else:
-        # Failsafe standard single stream download
+        # Однопотоковий запасний варіант
         try:
             req = urllib.request.Request(download_url, headers={"User-Agent": "Vortex/1.11.2"})
             with urllib.request.urlopen(req, context=ssl_context) as response:

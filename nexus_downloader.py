@@ -117,10 +117,10 @@ def get_download_link(session, game_id, mod_id, file_id):
         response.raise_for_status()
         links = response.json()
         
-        # The response is an array of mirrors, e.g. [{"name": "Premium CDN", "URI": "..."}]
         if isinstance(links, list) and len(links) > 0:
-            # Prefer the first URI (usually the best CDN location)
-            return links[0]["URI"]
+            uri = links[0].get("URI", "")
+            # Очищаємо URI від переносів рядків та пробілів по краях
+            return uri.strip().replace("\r", "").replace("\n", "") if uri else None
         return None
     except exceptions.RequestException as e:
         console.print(f"[red]Error fetching download link for file ID {file_id}: {e}[/red]")
@@ -137,10 +137,9 @@ def format_size(bytes_size):
     return f"{bytes_size:.2f} TB"
 
 def download_file(curl, file_url, output_path):
-    """Download a single file using pycurl (if available) or urllib (as a fallback) with a Rich progress bar."""
-    import urllib.request
-    
-    # Define a clean layout progress bar
+    """Download a single file using requests stream with a Rich progress bar."""
+    import requests
+
     with Progress(
         TextColumn("[bold blue]{task.description}"),
         BarColumn(bar_width=40),
@@ -150,59 +149,32 @@ def download_file(curl, file_url, output_path):
         transient=True
     ) as progress:
         
-        # Add a new progress task
         filename = os.path.basename(output_path)
         task_id = progress.add_task(f"Downloading {filename}", total=None)
 
-        if HAS_PYCURL and curl is not None:
-            def progress_callback(download_t, download_d, upload_t, upload_d):
-                # If the download total size is known, set the total
-                if download_t > 0:
-                    progress.update(task_id, total=download_t, completed=download_d)
-                elif download_d > 0:
-                    progress.update(task_id, completed=download_d)
-                return 0  # 0 indicates pycurl should continue
-
-            # Set up pycurl options
-            with open(output_path, 'wb') as f:
-                curl.setopt(pycurl.URL, file_url)
-                curl.setopt(pycurl.WRITEDATA, f)
-                curl.setopt(pycurl.NOPROGRESS, False)
-                curl.setopt(pycurl.XFERINFOFUNCTION, progress_callback)
-                curl.setopt(pycurl.FOLLOWLOCATION, True)  # Follow redirect
-                curl.setopt(pycurl.USERAGENT, USER_AGENT)
+        try:
+            # requests автоматично екранує всі пробіли та спеціальні символи
+            with requests.get(file_url, headers={"User-Agent": USER_AGENT}, stream=True, timeout=60) as response:
+                response.raise_for_status()
                 
-                try:
-                    curl.perform()
-                except pycurl.error as e:
-                    console.print(f"[red]pycurl error downloading file: {e}[/red]")
-                    if os.path.exists(output_path):
-                        os.remove(output_path)
-                    return False
-        else:
-            # Fallback to urllib.request (Standard Library)
-            try:
-                req = urllib.request.Request(file_url, headers={"User-Agent": USER_AGENT})
-                with urllib.request.urlopen(req) as response:
-                    total_size = int(response.info().get('Content-Length', 0))
-                    if total_size > 0:
-                        progress.update(task_id, total=total_size)
-                    
-                    downloaded = 0
-                    block_size = 1024 * 64
-                    with open(output_path, 'wb') as f:
-                        while True:
-                            buffer = response.read(block_size)
-                            if not buffer:
-                                break
-                            f.write(buffer)
-                            downloaded += len(buffer)
+                total_size = int(response.headers.get('content-length', 0))
+                if total_size > 0:
+                    progress.update(task_id, total=total_size)
+                
+                downloaded = 0
+                block_size = 1024 * 64
+                with open(output_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=block_size):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
                             progress.update(task_id, completed=downloaded)
-            except Exception as e:
-                console.print(f"[red]Error downloading file: {e}[/red]")
-                if os.path.exists(output_path):
-                    os.remove(output_path)
-                return False
+                            
+        except Exception as e:
+            console.print(f"[red]Error downloading file: {e}[/red]")
+            if os.path.exists(output_path):
+                os.remove(output_path)
+            return False
                 
     return True
 
@@ -287,14 +259,14 @@ def main():
     for f in files:
         file_id = str(f.get("file_id"))
         file_name = f.get("name", "Unknown")
+        actual_file_name = f.get("file_name", file_name)  # Справжнє ім'я з розширенням (.zip/.rar)
         file_version = f.get("version", "N/A")
         file_size_bytes = f.get("size_in_bytes", 0)
         file_size = format_size(file_size_bytes)
         category = f.get("category_name", "Main")
         description = f.get("description", "")
-        # Strip HTML tags from description if any
+        
         description = re.sub(r'<[^>]*>', '', description).strip()
-        # Truncate description if too long
         if len(description) > 80:
             description = description[:77] + "..."
 
@@ -307,7 +279,7 @@ def main():
             description
         )
         file_map[file_id] = {
-            "name": file_name,
+            "name": actual_file_name,  # Використовуємо коректне ім'я з .zip
             "size_in_bytes": file_size_bytes,
             "category": category
         }
