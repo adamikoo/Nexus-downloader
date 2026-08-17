@@ -1,6 +1,8 @@
 {
     "api_key": "",
-    "custom_paths": [],
+    "custom_paths": [
+        ""
+    ],
     "games": [],
     "sid_cookie": ""
 }
